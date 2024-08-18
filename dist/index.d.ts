@@ -2,7 +2,8 @@ import React, { ReactNode } from 'react';
 
 interface LanguageContextType {
     language: string;
-    translate: (key: string) => Promise<string>;
+    translate: (key: string) => string;
+    isLoading: (key: string) => boolean;
 }
 interface LanguageProviderProps {
     language: string;

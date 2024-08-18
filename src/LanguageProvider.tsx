@@ -1,9 +1,10 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { createForgeClient } from '../forge/client';
 
 interface LanguageContextType {
     language: string;
-    translate: (key: string) => Promise<string>;
+    translate: (key: string) => string;
+    isLoading: (key: string) => boolean;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -24,18 +25,50 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ language, fo
 
     const { translateText } = createForgeClient(actualForgeKey);
 
-    const translate = async (key: string): Promise<string> => {
-        try {
-            const result = await translateText(key, language);
-            return result.translation;
-        } catch (error) {
-            console.error('Translation error:', error);
-            return key;
+    const [translations, setTranslations] = useState<Record<string, Record<string, string>>>({});
+    const [pendingTranslations, setPendingTranslations] = useState<Set<string>>(new Set());
+
+    const translate = useCallback((key: string): string => {
+        if (translations[language]?.[key]) {
+            return translations[language][key];
         }
-    };
+
+        if (!pendingTranslations.has(key)) {
+            setPendingTranslations(prev => new Set(prev).add(key));
+            translateText(key, language)
+                .then(result => {
+                    setTranslations(prev => ({
+                        ...prev,
+                        [language]: {
+                            ...prev[language],
+                            [key]: result.translation
+                        }
+                    }));
+                    setPendingTranslations(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(key);
+                        return newSet;
+                    });
+                })
+                .catch(error => {
+                    console.error('Translation error:', error);
+                    setPendingTranslations(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(key);
+                        return newSet;
+                    });
+                });
+        }
+
+        return key; // Return the original key while translation is in progress
+    }, [language, translateText, translations]);
+
+    const isLoading = useCallback((key: string): boolean => {
+        return pendingTranslations.has(key);
+    }, [pendingTranslations]);
 
     return (
-        <LanguageContext.Provider value={{ language, translate }}>
+        <LanguageContext.Provider value={{ language, translate, isLoading }}>
             {children}
         </LanguageContext.Provider>
     );

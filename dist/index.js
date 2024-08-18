@@ -175,25 +175,42 @@ var LanguageProvider = function (_a) {
         throw new Error("FORGE_KEY not provided. Please set VITE_FORGE_KEY in your environment variables or pass it as a prop.");
     }
     var translateText = createForgeClient(actualForgeKey).translateText;
-    var translate = function (key) { return __awaiter(void 0, void 0, void 0, function () {
-        var result, error_1;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0:
-                    _a.trys.push([0, 2, , 3]);
-                    return [4 /*yield*/, translateText(key, language)];
-                case 1:
-                    result = _a.sent();
-                    return [2 /*return*/, result.translation];
-                case 2:
-                    error_1 = _a.sent();
-                    console.error('Translation error:', error_1);
-                    return [2 /*return*/, key];
-                case 3: return [2 /*return*/];
-            }
-        });
-    }); };
-    return (React__default["default"].createElement(LanguageContext.Provider, { value: { language: language, translate: translate } }, children));
+    var _c = React.useState({}), translations = _c[0], setTranslations = _c[1];
+    var _d = React.useState(new Set()), pendingTranslations = _d[0], setPendingTranslations = _d[1];
+    var translate = React.useCallback(function (key) {
+        var _a;
+        if ((_a = translations[language]) === null || _a === void 0 ? void 0 : _a[key]) {
+            return translations[language][key];
+        }
+        if (!pendingTranslations.has(key)) {
+            setPendingTranslations(function (prev) { return new Set(prev).add(key); });
+            translateText(key, language)
+                .then(function (result) {
+                setTranslations(function (prev) {
+                    var _a, _b;
+                    return (__assign(__assign({}, prev), (_a = {}, _a[language] = __assign(__assign({}, prev[language]), (_b = {}, _b[key] = result.translation, _b)), _a)));
+                });
+                setPendingTranslations(function (prev) {
+                    var newSet = new Set(prev);
+                    newSet.delete(key);
+                    return newSet;
+                });
+            })
+                .catch(function (error) {
+                console.error('Translation error:', error);
+                setPendingTranslations(function (prev) {
+                    var newSet = new Set(prev);
+                    newSet.delete(key);
+                    return newSet;
+                });
+            });
+        }
+        return key; // Return the original key while translation is in progress
+    }, [language, translateText, translations]);
+    var isLoading = React.useCallback(function (key) {
+        return pendingTranslations.has(key);
+    }, [pendingTranslations]);
+    return (React__default["default"].createElement(LanguageContext.Provider, { value: { language: language, translate: translate, isLoading: isLoading } }, children));
 };
 var useLanguage = function () {
     var context = React.useContext(LanguageContext);
