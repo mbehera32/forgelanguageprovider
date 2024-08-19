@@ -168,15 +168,15 @@ function createForgeClient(forgeKey) {
 var LanguageContext = React.createContext(undefined);
 var LanguageProvider = function (_a) {
     var _b;
-    var language = _a.language, forgeKey = _a.forgeKey, children = _a.children;
+    var language = _a.language, forgeKey = _a.forgeKey, _c = _a.allOutputs, allOutputs = _c === void 0 ? false : _c, children = _a.children;
     var viteForgeKey = (_b = undefined) === null || _b === void 0 ? void 0 : _b.VITE_FORGE_KEY;
     var actualForgeKey = forgeKey || viteForgeKey;
     if (!actualForgeKey) {
-        throw new Error("FORGE_KEY not provided. Please set VITE_FORGE_KEY in your environment variables or pass it as a prop.");
+        throw new Error("FORGE_KEY not provided. Please set FORGE_KEY in your environment variables or pass it as a prop.");
     }
     var translateText = createForgeClient(actualForgeKey).translateText;
-    var _c = React.useState({}), translations = _c[0], setTranslations = _c[1];
-    var _d = React.useState(new Set()), pendingTranslations = _d[0], setPendingTranslations = _d[1];
+    var _d = React.useState({}), translations = _d[0], setTranslations = _d[1];
+    var _e = React.useState(new Set()), pendingTranslations = _e[0], setPendingTranslations = _e[1];
     var translate = React.useCallback(function (key) {
         var _a;
         if ((_a = translations[language]) === null || _a === void 0 ? void 0 : _a[key]) {
@@ -188,12 +188,10 @@ var LanguageProvider = function (_a) {
                 .then(function (result) {
                 setTranslations(function (prev) {
                     var _a, _b;
-                    return (__assign(__assign({}, prev), (_a = {}, _a[language] = __assign(__assign({}, prev[language]), (_b = {}, _b[key] = result.translation, _b)), _a)));
-                });
-                setPendingTranslations(function (prev) {
-                    var newSet = new Set(prev);
-                    newSet.delete(key);
-                    return newSet;
+                    var newTranslations = __assign(__assign({}, prev), (_a = {}, _a[language] = __assign(__assign({}, prev[language]), (_b = {}, _b[key] = result.translation, _b)), _a));
+                    // Force a re-render
+                    setPendingTranslations(new Set());
+                    return newTranslations;
                 });
             })
                 .catch(function (error) {
@@ -210,7 +208,42 @@ var LanguageProvider = function (_a) {
     var isLoading = React.useCallback(function (key) {
         return pendingTranslations.has(key);
     }, [pendingTranslations]);
-    return (React__default["default"].createElement(LanguageContext.Provider, { value: { language: language, translate: translate, isLoading: isLoading } }, children));
+    var TranslateWrapper = function (_a) {
+        var children = _a.children;
+        var translate = useLanguage().translate;
+        var _b = React.useState(children), translatedChildren = _b[0], setTranslatedChildren = _b[1];
+        React.useEffect(function () {
+            var translateNode = function (node) {
+                if (typeof node === 'string') {
+                    return translate(node);
+                }
+                if (React__default["default"].isValidElement(node)) {
+                    var props = __assign({}, node.props);
+                    if (typeof props.children === 'string') {
+                        props.children = translate(props.children);
+                    }
+                    else if (Array.isArray(props.children)) {
+                        props.children = React__default["default"].Children.map(props.children, translateNode);
+                    }
+                    return React__default["default"].cloneElement(node, props);
+                }
+                return node;
+            };
+            var newTranslatedChildren = React__default["default"].Children.map(children, translateNode);
+            setTranslatedChildren(newTranslatedChildren);
+        }, [children, translate]);
+        return React__default["default"].createElement(React__default["default"].Fragment, null, translatedChildren);
+    };
+    var contextValue = React.useMemo(function () { return ({
+        language: language,
+        translate: translate,
+        isLoading: isLoading
+    }); }, [language, translate, isLoading]);
+    if (allOutputs) {
+        return (React__default["default"].createElement(LanguageContext.Provider, { value: contextValue },
+            React__default["default"].createElement(TranslateWrapper, null, children)));
+    }
+    return (React__default["default"].createElement(LanguageContext.Provider, { value: contextValue }, children));
 };
 var useLanguage = function () {
     var context = React.useContext(LanguageContext);

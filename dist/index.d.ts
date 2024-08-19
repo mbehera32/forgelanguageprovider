@@ -8,6 +8,7 @@ interface LanguageContextType {
 interface LanguageProviderProps {
     language: string;
     forgeKey?: string;
+    allOutputs?: boolean;
     children: ReactNode;
 }
 declare const LanguageProvider: React.FC<LanguageProviderProps>;
